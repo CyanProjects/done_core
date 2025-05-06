@@ -92,6 +92,40 @@ impl<T> ModuleNameTypeMap<T> {
     }
   }
 
+  pub fn delete<Q>(
+    &mut self,
+    module_type: &RequestedModuleType,
+    name: &Q,
+  ) -> bool
+  where
+      ModuleName: std::borrow::Borrow<Q>,
+      Q: std::cmp::Eq + std::hash::Hash + std::fmt::Debug + ?Sized,
+  {
+    let index = match self.map_index(module_type) {
+      Some(index) => index,
+      None => return false,
+    };
+
+    self.submaps.get_mut(index)
+        .unwrap()
+        .remove(name)
+        .is_some()
+  }
+
+  pub fn get_map(
+    &self,
+    module_type: &RequestedModuleType
+  ) -> &HashMap<ModuleName, T> {
+    let index = match self.map_index(module_type) {
+      Some(index) => index,
+      None => todo!()
+    };
+
+    let map = self.submaps.get(index)
+        .unwrap();
+    map
+  }
+
   /// Rather than providing an iterator, we provide a drain method. This is mainly because Rust
   /// doesn't have generators.
   pub fn drain(
@@ -216,6 +250,30 @@ impl ModuleMapData {
         SymbolicModule::Mod(mod_id) => return Some(*mod_id),
       }
     }
+  }
+
+  pub fn get_modules_with_type(
+    &self,
+    requested_module_type: impl AsRef<RequestedModuleType>,
+  ) -> Vec<FastString> {
+    self.by_name.get_map(requested_module_type.as_ref())
+        .keys()
+        .map(|name| {
+          match name.try_clone() {
+            Some(name) => name,
+            None => name.as_str().to_string().into()
+          }
+        })
+        .collect::<Vec<_>>()
+  }
+
+  /// Drop name from module id cache
+  pub fn drop_name(
+    &mut self,
+    name: &str,
+    requested_module_type: impl AsRef<RequestedModuleType>,
+  ) -> bool {
+    self.by_name.delete(requested_module_type.as_ref(), name)
   }
 
   pub(crate) fn alias(

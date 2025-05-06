@@ -67,7 +67,7 @@ use smallvec::SmallVec;
 use std::any::Any;
 use std::future::Future;
 use std::future::poll_fn;
-use v8::MessageErrorLevel;
+use v8::{HandleScope, MessageErrorLevel};
 
 use std::cell::Cell;
 use std::cell::RefCell;
@@ -2127,6 +2127,10 @@ impl JsRuntime {
     }
 
     Poll::Pending
+  }
+
+  pub unsafe fn module_map_from(scope: &mut HandleScope) -> Rc<ModuleMap> {
+    JsRealm::module_map_from(scope)
   }
 }
 

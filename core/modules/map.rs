@@ -4,7 +4,7 @@ use super::IntoModuleCodeString;
 use super::IntoModuleName;
 use super::ModuleConcreteError;
 use super::module_map_data::ModuleMapSnapshotData;
-use crate::FastStaticString;
+use crate::{FastStaticString, FastString};
 use crate::JsRuntime;
 use crate::ModuleCodeBytes;
 use crate::ModuleLoadResponse;
@@ -121,7 +121,7 @@ struct DynImportState {
 }
 
 /// A collection of JS modules.
-pub(crate) struct ModuleMap {
+pub struct ModuleMap {
   // Handling of futures for loading module sources
   // TODO(mmastrac): we should not be swapping this loader out
   pub(crate) loader: RefCell<Rc<dyn ModuleLoader>>,
@@ -984,6 +984,27 @@ impl ModuleMap {
       RecursiveModuleLoad::side(specifier.as_ref(), module_map_rc.clone());
     load.prepare().await?;
     Ok(load)
+  }
+
+  pub fn list_modules(
+    &self,
+    requested_module_type: &RequestedModuleType,
+  ) -> Vec<FastString> {
+    self
+        .data
+        .borrow()
+        .get_modules_with_type(&requested_module_type)
+  }
+
+  pub fn delete_module(
+    &self,
+    requested_module_type: RequestedModuleType,
+    specifier: ModuleSpecifier,
+  ) -> bool {
+    self
+        .data
+        .borrow_mut()
+        .drop_name(specifier.as_str(), &requested_module_type)
   }
 
   // Initiate loading of a module graph imported using `import()`.
