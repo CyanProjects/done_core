@@ -30,6 +30,7 @@ pub use loaders::ModuleLoader;
 pub use loaders::ModuleLoaderError;
 pub use loaders::NoopModuleLoader;
 pub use loaders::StaticModuleLoader;
+pub use module_map_data::SymbolicModule;
 pub(crate) use map::ModuleMap;
 pub(crate) use map::script_origin;
 pub(crate) use map::synthetic_module_evaluation_steps;
@@ -613,7 +614,7 @@ impl std::fmt::Display for RequestedModuleType {
 /// import assertions explicitly constrains an import to JSON, in
 /// which case this will have a `RequestedModuleType::Json`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
-pub(crate) struct ModuleRequest {
+pub struct ModuleRequest {
   pub specifier: ModuleSpecifier,
   pub requested_module_type: RequestedModuleType,
 }

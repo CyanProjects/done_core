@@ -20,7 +20,7 @@ use std::rc::Rc;
 
 /// A symbolic module entity.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) enum SymbolicModule {
+pub enum SymbolicModule {
   /// This module is an alias to another module.
   /// This is useful such that multiple names could point to
   /// the same underlying module (particularly due to redirects).
@@ -68,9 +68,9 @@ impl<T> ModuleNameTypeMap<T> {
   pub fn insert(
     &mut self,
     module_type: &RequestedModuleType,
-    name: FastString,
+    name: ModuleName,
     module: T,
-  ) {
+  ) -> Option<T> {
     let index = match self.map_index(module_type) {
       Some(index) => index,
       None => {
@@ -81,15 +81,19 @@ impl<T> ModuleNameTypeMap<T> {
       }
     };
 
-    if self
-      .submaps
-      .get_mut(index)
-      .unwrap()
-      .insert(name, module)
+    let original = self
+        .submaps
+        .get_mut(index)
+        .unwrap()
+        .insert(name, module);
+
+    if original
       .is_none()
     {
       self.len += 1;
     }
+
+    original
   }
 
   pub fn delete<Q>(
@@ -106,10 +110,13 @@ impl<T> ModuleNameTypeMap<T> {
       None => return false,
     };
 
-    self.submaps.get_mut(index)
+    let removed = self.submaps.get_mut(index)
         .unwrap()
-        .remove(name)
-        .is_some()
+        .remove(name);
+    if removed.is_some() {
+      self.len -= 1;
+    }
+    removed.is_some()
   }
 
   pub fn get_map(
@@ -225,6 +232,18 @@ impl ModuleMapData {
     id
   }
 
+  /// Set module id
+  /// Return the original [`ModuleId`] if exists
+  pub fn set_id(
+    &mut self,
+    name: &str,
+    requested_module_type: RequestedModuleType,
+    module_id: ModuleId,
+  ) -> Option<SymbolicModule> {
+    let map = &mut self.by_name;
+    map.insert(&requested_module_type, FastString::from(name.to_owned()), SymbolicModule::Mod(module_id))
+  }
+
   /// Get module id, following all aliases in case of module specifier
   /// that had been redirected.
   pub fn get_id(
@@ -255,20 +274,13 @@ impl ModuleMapData {
   pub fn get_modules_with_type(
     &self,
     requested_module_type: impl AsRef<RequestedModuleType>,
-  ) -> Vec<FastString> {
+  ) -> impl Iterator<Item = (&FastString, &SymbolicModule)> {
     self.by_name.get_map(requested_module_type.as_ref())
-        .keys()
-        .map(|name| {
-          match name.try_clone() {
-            Some(name) => name,
-            None => name.as_str().to_string().into()
-          }
-        })
-        .collect::<Vec<_>>()
+        .iter()
   }
 
   /// Drop name from module id cache
-  pub fn drop_name(
+  pub fn drop_module_with_type(
     &mut self,
     name: &str,
     requested_module_type: impl AsRef<RequestedModuleType>,
@@ -400,7 +412,7 @@ impl ModuleMapData {
     }
 
     for (name, module_type, module) in data.by_name {
-      self.by_name.insert(&module_type, name, module)
+      self.by_name.insert(&module_type, name, module);
     }
   }
 

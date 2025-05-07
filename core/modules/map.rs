@@ -3,7 +3,7 @@
 use super::IntoModuleCodeString;
 use super::IntoModuleName;
 use super::ModuleConcreteError;
-use super::module_map_data::ModuleMapSnapshotData;
+use super::module_map_data::{ModuleMapSnapshotData, SymbolicModule};
 use crate::{FastStaticString, FastString};
 use crate::JsRuntime;
 use crate::ModuleCodeBytes;
@@ -958,7 +958,7 @@ impl ModuleMap {
     None
   }
 
-  pub(crate) fn get_requested_modules(
+  pub fn get_requested_modules(
     &self,
     id: ModuleId,
   ) -> Option<Vec<ModuleRequest>> {
@@ -986,17 +986,43 @@ impl ModuleMap {
     Ok(load)
   }
 
-  pub fn list_modules(
+  pub fn map_get_module(
+    &self,
+    name: &str,
+    requested_module_type: &RequestedModuleType,
+  ) -> Option<ModuleId> {
+    self
+        .data
+        .borrow()
+        .get_id(name, requested_module_type)
+  }
+
+  pub fn map_set_module(
+    &self,
+    name: &str,
+    requested_module_type: RequestedModuleType,
+    module_id: ModuleId,
+  ) -> Option<SymbolicModule> {
+    self
+        .data
+        .borrow_mut()
+        .set_id(name, requested_module_type, module_id)
+  }
+
+  pub fn map_list_modules<R>(
     &self,
     requested_module_type: &RequestedModuleType,
-  ) -> Vec<FastString> {
+    mut filter_map_fn: impl FnMut(&FastString, &SymbolicModule) -> Option<R>
+  ) -> Vec<R> {
     self
         .data
         .borrow()
         .get_modules_with_type(&requested_module_type)
+        .filter_map(move |(name, id)| filter_map_fn(name, id))
+        .collect::<Vec<_>>()
   }
 
-  pub fn delete_module(
+  pub fn map_delete_module(
     &self,
     requested_module_type: RequestedModuleType,
     specifier: ModuleSpecifier,
@@ -1004,7 +1030,7 @@ impl ModuleMap {
     self
         .data
         .borrow_mut()
-        .drop_name(specifier.as_str(), &requested_module_type)
+        .drop_module_with_type(specifier.as_str(), &requested_module_type)
   }
 
   // Initiate loading of a module graph imported using `import()`.
@@ -1729,7 +1755,7 @@ impl ModuleMap {
     }
   }
 
-  pub(crate) fn get_module<'s>(
+  pub fn get_module<'s>(
     &self,
     scope: &mut v8::HandleScope<'s>,
     module_id: ModuleId,
